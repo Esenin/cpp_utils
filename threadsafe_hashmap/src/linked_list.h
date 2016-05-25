@@ -3,11 +3,11 @@
 
 #include <inttypes.h>
 #include <iterator>     // iterator
-#include <type_traits>  // remove_cv
 
 namespace my_concurrency {
 namespace internals {
 
+/// @brief Single-linked list with iterator
 template<typename Type>
 class LinkedList {
  public:
@@ -17,15 +17,28 @@ class LinkedList {
   }
 
   uint64_t Size() const;
+
+  /// @brief add element to list
+  /// @param value insert to the list
+  /// @return true in case successful appending, false if the element already exists in the list
   bool TryAppend(const Type &value);
+
+  /// @brief remove element from the list
+  /// @param value element to delete
+  /// @return true in case successful removal, false in case no such value in the list
   bool TryRemove(const Type &value);
+
+  /// @brief check if the value exists in the list
   bool Lookup(const Type &value) const;
+  /// @brief Remove all the elements in the list
   void Clear();
+  /// @brief check if the list is empty
   bool Empty() const;
 
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
 
+  /// @brief const forward iterator
   class ListIterator;
 
   typedef ListIterator const_iterator;
@@ -41,7 +54,6 @@ class LinkedList {
   ListElement *head_ = nullptr;
   ListElement *tail_ = nullptr;
   uint64_t size_ = 0;
-
 };
 
 template<typename Type>
@@ -145,7 +157,7 @@ class LinkedList<Type>::ListIterator : public std::iterator<std::forward_iterato
 
   bool operator==(const ListIterator &rhs) { return node_ptr_ == rhs.node_ptr_; }
   bool operator!=(const ListIterator &rhs) { return node_ptr_ != rhs.node_ptr_; }
-  Type& operator*() { return node_ptr_->value; }
+  const Type& operator*() { return node_ptr_->value; }
 
  private:
   ListElement *node_ptr_;
