@@ -3,8 +3,11 @@
 
 #include <assert.h>
 #include <iostream>
+#include <vector>
 
 #include "../src/linked_list.h"
+
+using my_concurrency::internals::LinkedList;
 
 namespace tests {
 
@@ -22,6 +25,7 @@ class LinkedListTest {
     MultiAppendTest();
     LookupTest();
     RemoveTest();
+    IteratorTest();
 
     std::cout << "Linked list tests passed." << std::endl;
   }
@@ -103,6 +107,19 @@ class LinkedListTest {
     assert(4 == list.Size());
     list.Clear();
     assert(0 == list.Size() && list.Empty());
+  }
+
+  void IteratorTest() {
+    std::vector<int> values {1, 2, 3, 10, 20};
+    LinkedList<int> list;
+    for (int x : values)
+      list.TryAppend(x);
+
+    int idx = 0;
+
+    for (auto iter = list.begin(); iter != list.end(); ++iter, idx++)
+      assert(idx < values.size() && *iter == values[idx]);
+
   }
 };
 

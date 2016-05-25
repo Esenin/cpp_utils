@@ -2,11 +2,16 @@
 #define THREADSAFE_HASHMAP_LINKEDLIST_H
 
 #include <inttypes.h>
+#include <iterator>     // iterator
+#include <type_traits>  // remove_cv
+
+namespace my_concurrency {
+namespace internals {
 
 template<typename Type>
 class LinkedList {
  public:
-  LinkedList() {}
+  LinkedList() { }
   ~LinkedList() {
     Clear();
   }
@@ -20,6 +25,12 @@ class LinkedList {
 
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
+
+  class ListIterator;
+
+  typedef ListIterator const_iterator;
+  const_iterator begin() const;
+  const_iterator end() const;
  private:
   struct ListElement {
     Type value;
@@ -119,6 +130,38 @@ template<typename Type>
 bool LinkedList<Type>::Empty() const {
   return 0 == size_;
 }
+
+template<typename Type>
+class LinkedList<Type>::ListIterator : public std::iterator<std::forward_iterator_tag, Type> {
+ public:
+  ListIterator() : node_ptr_(nullptr) {}
+  ListIterator(const LinkedList& list) : node_ptr_(list.head_) {}
+
+  ListIterator& operator++() {
+    if (node_ptr_)
+      node_ptr_ = node_ptr_->next;
+    return *this;
+  }
+
+  bool operator==(const ListIterator &rhs) { return node_ptr_ == rhs.node_ptr_; }
+  bool operator!=(const ListIterator &rhs) { return node_ptr_ != rhs.node_ptr_; }
+  Type& operator*() { return node_ptr_->value; }
+
+ private:
+  ListElement *node_ptr_;
+};
+
+template<typename Type>
+typename LinkedList<Type>::const_iterator LinkedList<Type>::begin() const {
+  return ListIterator(*this);
+}
+
+template<typename Type>
+typename LinkedList<Type>::const_iterator LinkedList<Type>::end() const {
+  return ListIterator();
+}
+} // namespace internals
+} // namespace my_concurrency
 
 #endif //THREADSAFE_HASHMAP_LINKEDLIST_H
 
