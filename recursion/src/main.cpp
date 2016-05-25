@@ -11,7 +11,25 @@
 
 using solvers::DirectCompute;
 using solvers::TreeBfsCompute;
+using std::cout;
+using std::endl;
 
+void BitCounterTest() {
+  for (uint32_t i = 1; i < 100; i++) {
+    uint32_t x = i;
+    uint32_t counter = 0;
+
+    while (x) {
+      x = x & (x - 1);
+      counter++;
+    }
+    assert(counter == BitCounter(i));
+
+  }
+}
+
+/// @brief checks function for correct answers
+/// @param solver is any function within solvers namespace
 void PrecalculatedTests(std::function<uint64_t(uint64_t)> solver) {
   const std::vector<uint64_t> input {0, 1, 2, 3, 256, 258, 1023, 1024, 123456, 987654321, 123456789012345};
   const std::vector<uint64_t> answers {1, 1, 1, 2, 1, 14, 89, 1, 59, 167576, 140274140};
@@ -70,6 +88,7 @@ void TimeMeasurement() {
 }
 
 int main() {
+  BitCounterTest();
   TestSuit();
   TimeMeasurement();
 

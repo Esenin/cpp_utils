@@ -5,6 +5,8 @@
 
 namespace helpers {
 
+  /// @brief computes amount of non-zero bits
+  /// similar to __builtin_popcount  for GCC
   static uint64_t BitCounter(uint64_t x) {
   x = x - ((x >> 1) & 0x5555555555555555ull);
   x = (x & 0x3333333333333333ull) + ((x >> 2) & 0x3333333333333333ull);

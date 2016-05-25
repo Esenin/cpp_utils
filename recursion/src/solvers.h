@@ -8,15 +8,23 @@
 
 using helpers::BitCounter;
 
+/// @brief solvers contains functions for computation following recursive problem:
+/// f(0) = f(1) = 1, f(2n) = f(n), f(2n + 1) = f(n) + f(n - 1)
 namespace solvers {
 
-static uint64_t DirectCompute(uint64_t x)  {
-  if (x <= 1) return 1;
+/// @brief computes recursive problem by direct evaluation the recursive statement
+/// @param n  argument to compute
+/// @return f(n) as defined for the namespace
+static uint64_t DirectCompute(uint64_t n)  {
+  if (n <= 1) return 1;
 
-  return DirectCompute(x / 2) + ((x & 1) == 1 ? DirectCompute(x / 2 - 1) : 0);
+  return DirectCompute(n / 2) + ((n & 1) == 1 ? DirectCompute(n / 2 - 1) : 0);
 }
 
 
+/// @brief computes recursive problem using breadth-first-search approach for dependency tree
+/// @param n  argument to compute
+/// @return f(n) as defined for the namespace
 static uint64_t TreeBfsCompute(uint64_t n) {
   std::map<uint64_t, uint64_t> tree {{n, 1}};
 
@@ -25,6 +33,7 @@ static uint64_t TreeBfsCompute(uint64_t n) {
     auto node = *tree.rbegin();
     tree.erase(--tree.end());
 
+    // Notice:  f(2^i) = 1 for any positive i
     if (BitCounter(node.first) == 1) {
       tree[1] += node.second;
       continue;
