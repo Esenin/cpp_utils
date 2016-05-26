@@ -196,6 +196,8 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
   primary_table_.reset(secondary_table_.release()); // deletes old table and set secondary table ptr to nullptr
   primary_size_ = secondary_size_.load(std::memory_order_acquire);
   secondary_size_ = 0;
+  num_buckets_primary_ = num_buckets_secondary_;
+  num_buckets_secondary_ = 0;
 
   state_ = State::kNormal;
 }

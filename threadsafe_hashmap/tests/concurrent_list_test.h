@@ -71,25 +71,25 @@ class ConcurrentListTest {
 
   void WriterReaderTest() {
     ConcurrentLinkedList<int, int> list;
-    int num_elements = 101;
+    int num_elements = 201;
 
     auto writer = [&list, num_elements] () {
       for (int i = 0; i < num_elements; i++)
         list.Insert(i, i);
+
     };
 
     auto sum_reader = [&list, num_elements] () -> int {
-      int counter = 0;
       int sum = 0;
-      while (counter < num_elements) {
-        for (int i = 0; i < num_elements; i++) {
-          auto result = list.Lookup(i);
-          if (result.first) {
-            sum += result.second;
-            counter++;
-          }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      int cur_idx = 0;
+      while (cur_idx < num_elements) {
+        auto result = list.Lookup(cur_idx);
+
+        while (!result.first)
+          result = list.Lookup(cur_idx);
+
+        sum += result.second;
+        cur_idx++;
       }
       return sum;
     };
@@ -97,7 +97,7 @@ class ConcurrentListTest {
     std::thread writer_thread(writer);
     auto result = std::async(std::launch::async, sum_reader);
     writer_thread.join();
-    assert(5050 == result.get());  // 5050 = sum(1 +... + 100)
+    assert(20100 == result.get());  // 20100 = sum(1 +... + 200)
   }
 
   void ManyWriters() {

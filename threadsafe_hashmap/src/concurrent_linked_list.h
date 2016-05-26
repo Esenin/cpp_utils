@@ -68,7 +68,7 @@ class ConcurrentLinkedList {
 
   /// @brief places new node into the list. Releases the pointer or moves the object
   /// @return true if new element was inserted, false if a node was overwritten
-  bool InsertList(std::unique_ptr<ListElement> &node);
+  bool InsertListElement(std::unique_ptr<ListElement> &node);
 
   mutable std::shared_timed_mutex mutex_;
   ListElement *head_ = nullptr;
@@ -157,14 +157,14 @@ void ConcurrentLinkedList<KeyType, ValueType>::PopFront(std::pair<KeyType, Value
 template<typename KeyType, typename ValueType>
 bool ConcurrentLinkedList<KeyType, ValueType>::Insert(const KeyType &key, const ValueType &value) {
   auto new_node = std::unique_ptr<ListElement>(new ListElement(key, value));
-  return InsertList(new_node);
+  return InsertListElement(new_node);
 }
 
 template<typename KeyType, typename ValueType>
 bool ConcurrentLinkedList<KeyType, ValueType>::Insert(KeyType &&key, ValueType &&value) {
   auto new_node = std::unique_ptr<ListElement>(new ListElement(std::forward<KeyType>(key),
                                                                std::forward<ValueType>(value)));
-  return InsertList(new_node);
+  return InsertListElement(new_node);
 }
 
 template<typename KeyType, typename ValueType>
@@ -173,7 +173,7 @@ bool ConcurrentLinkedList<KeyType, ValueType>::Insert(std::pair<KeyType, ValueTy
 };
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::InsertList(std::unique_ptr<ListElement> &node) {
+bool ConcurrentLinkedList<KeyType, ValueType>::InsertListElement(std::unique_ptr<ListElement> &node) {
   const bool kWasNewElementCreated = true;
   std::lock_guard<std::shared_timed_mutex> lock(mutex_);
   if (Empty()) {
