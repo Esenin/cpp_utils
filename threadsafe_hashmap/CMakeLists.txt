@@ -3,5 +3,9 @@ project(threadsafe_hashmap)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-set(SOURCE_FILES main.cpp include/threadsafe_hashmap.h src/bucket.h src/linked_list.h tests/linked_list_test.h)
+find_package(Threads REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+set(SOURCE_FILES main.cpp include/threadsafe_hashmap.h src/concurrent_linked_list.h tests/linked_list_test.h tests/concurrent_list_test.h)
 add_executable(threadsafe_hashmap ${SOURCE_FILES})
+target_link_libraries(threadsafe_hashmap ${CMAKE_THREAD_LIBS_INIT})
