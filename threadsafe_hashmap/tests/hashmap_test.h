@@ -1,6 +1,18 @@
 #ifndef THREADSAFE_HASHMAP_CONCURRENT_MAP_TEST_H
 #define THREADSAFE_HASHMAP_CONCURRENT_MAP_TEST_H
 
+#ifdef NDEBUG
+#undef NDEBUG
+  #define RESTORE_NDEBUG
+#endif
+
+#include <assert.h>
+
+#ifdef RESTORE_NDEBUG
+#undef RESTORE_NDEBUG
+  #define NDEBUG
+#endif
+
 #include <vector>
 
 #include "../include/threadsafe_hashmap.h"
@@ -9,11 +21,6 @@ using my_concurrency::ThreadsafeHashmap;
 
 namespace tests {
 
-#ifdef NDEBUG
-#undef NDEBUG
-#define RESTORE_NDEBUG
-#endif
-
 class ConcurrentMapTest {
  public:
   void TestAll() {
@@ -21,7 +28,8 @@ class ConcurrentMapTest {
     ManyOperationsTest();
     ResizeTest();
     ParallelInsert();
-
+    ParallelResizeTest();
+    ConcurrentWriteRemoveTest();
 
     std::cout << "Concurrent Hashmap tests passed." << std::endl;
   }
@@ -100,15 +108,58 @@ class ConcurrentMapTest {
       assert(make_pair(true, i * 10) == map.Lookup(i));
   }
 
+  void ParallelResizeTest() {
+    Map map(20);
+    int chunk_size = 1000;
+    auto writer = [&map, chunk_size] (int start_value) {
+      for (int i = start_value; i < start_value + chunk_size; i++)
+        map.Insert(i, i * 10);
+    };
+    std::thread t1(writer, 0);
+    std::thread t2(writer, chunk_size);
+    std::thread t3(writer, 2 * chunk_size);
+
+    t1.join();
+    t2.join();
+    t3.join();
+
+    for (int i = 0; i < 3 * chunk_size; i++)
+      assert(make_pair(true, i * 10) == map.Lookup(i));
+    assert(3 * chunk_size == map.Size());
+  }
+
+  void ConcurrentWriteRemoveTest() {
+    Map map;
+    int data_size = 10001;
+    auto writer = [&map, data_size] () {
+      for (int i = 0; i < data_size; i++)
+        map.Insert(i, i * 10);
+    };
+
+    auto remove_even = [&map, data_size] () {
+      int counter = 0;
+      while (counter < data_size / 2) {
+        for (int i = 0; i < data_size; i += 2)
+          counter += map.Remove(i)? 1 : 0;
+      }
+    };
+    std::thread t1(writer);
+    std::thread t2(remove_even);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    assert(map.Size() > 0);
+
+    t1.join();
+    t2.join();
+    for (int i = 0; i < data_size; i++)
+      assert(make_pair((i & 1) == 1, (i & 1) == 1? i * 10 : 0) == map.Lookup(i));
+
+    assert(data_size / 2 == map.Size());
+  }
 
 
 
 };
-
-#ifdef RESTORE_NDEBUG
-#undef RESTORE_NDEBUG
-#define NDEBUG
-#endif
 
 } // namespace tests
 

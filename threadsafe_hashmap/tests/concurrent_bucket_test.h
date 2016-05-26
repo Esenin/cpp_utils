@@ -1,24 +1,30 @@
 #ifndef THREADSAFE_HASHMAP_CONCURRENT_LIST_TEST_H
 #define THREADSAFE_HASHMAP_CONCURRENT_LIST_TEST_H
 
+#ifdef NDEBUG
+#undef NDEBUG
+  #define RESTORE_NDEBUG
+#endif
+
 #include <assert.h>
+
+#ifdef RESTORE_NDEBUG
+#undef RESTORE_NDEBUG
+  #define NDEBUG
+#endif
+
 #include <numeric>
 #include <iostream>
 #include <thread>
 #include <vector>
 #include <future>
 
-#include "../src/concurrent_linked_list.h"
+#include "../src/bucket.h"
 
-using my_concurrency::internals::ConcurrentLinkedList;
+using my_concurrency::internals::Bucket;
 
 
 namespace tests {
-
-#ifdef NDEBUG
-#undef NDEBUG
-#define RESTORE_NDEBUG
-#endif
 
 class ConcurrentListTest {
  public:
@@ -34,12 +40,12 @@ class ConcurrentListTest {
   }
 
  private:
-  void LoadList(ConcurrentLinkedList<int,int> &list) {
+  void LoadList(Bucket<int,int> &list) {
     for (int x : keys)
       list.Insert(x, x * 10);
   }
 
-  int ListSumSerialized(ConcurrentLinkedList<int, int> &list) {
+  int ListSumSerialized(Bucket<int, int> &list) {
     return std::accumulate(list.Begin(), list.End(), 0, [] (int acc, auto key_value) { return acc + key_value.second; });
   }
 
@@ -47,7 +53,7 @@ class ConcurrentListTest {
 
 
   void ManyReadersTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     LoadList(list);
 
     auto sum_list = [&list] () {  // the answer is  750
@@ -70,7 +76,7 @@ class ConcurrentListTest {
   }
 
   void WriterReaderTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     int num_elements = 201;
 
     auto writer = [&list, num_elements] () {
@@ -101,7 +107,7 @@ class ConcurrentListTest {
   }
 
   void ManyWriters() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     int num_elements = 101;
 
     auto writer = [&list, num_elements] (bool do_write_even) {
@@ -119,7 +125,7 @@ class ConcurrentListTest {
   }
 
   void SerialLockReleaseTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
 
     int num_elements = 101;
 
@@ -149,12 +155,6 @@ class ConcurrentListTest {
     assert(5050 == ListSumSerialized(list));
   }
 };
-
-
-#ifdef RESTORE_NDEBUG
-#undef RESTORE_NDEBUG
-#define NDEBUG
-#endif
 
 } // namespace tests
 #endif //THREADSAFE_HASHMAP_CONCURRENT_LIST_TEST_H

@@ -2,23 +2,22 @@
 #define THREADSAFE_HASHMAP_LINKEDLIST_H
 
 #include <inttypes.h>
-#include <iterator>     // iterator
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <stdexcept>
 #include <utility> // pair
 
 namespace my_concurrency {
 namespace internals {
 
-/// @brief Many readers - single writer  linked list with serialized (blocking!) iterator
+/// @brief Many readers - single writer bucket based on single linked list with serialized (blocking!) iterator
 /// @tparam ValueType should have default constructor in order to lookup non-existing elements
 template<typename KeyType, typename ValueType>
-class ConcurrentLinkedList {
+class Bucket {
  public:
-  ConcurrentLinkedList() { }
-  ~ConcurrentLinkedList() {
+  Bucket() { }
+  ~Bucket() {
     Clear();
   }
 
@@ -52,7 +51,10 @@ class ConcurrentLinkedList {
   iterator Begin() const;
   iterator End() const;
 
-  void PopFront(std::pair<KeyType, ValueType> &result);
+  /// @brief Pops first element from the list to provided object
+  /// @param result front element saves to this container
+  /// @return true if successful, false in case the list is empty
+  bool PopFront(std::pair<KeyType, ValueType> &result);
 
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
@@ -72,17 +74,16 @@ class ConcurrentLinkedList {
 
   mutable std::shared_timed_mutex mutex_;
   ListElement *head_ = nullptr;
-  ListElement *tail_ = nullptr;
   uint64_t size_ = 0;
 };
 
 template<typename KeyType, typename ValueType>
-uint64_t ConcurrentLinkedList<KeyType, ValueType>::Size() const {
+uint64_t Bucket<KeyType, ValueType>::Size() const {
   return size_;
 }
 
 template<typename KeyType, typename ValueType>
-void ConcurrentLinkedList<KeyType, ValueType>::Clear() {
+void Bucket<KeyType, ValueType>::Clear() {
   std::lock_guard<std::shared_timed_mutex> lock(mutex_);
   while (head_ != nullptr) {
     auto temp = head_;
@@ -93,7 +94,7 @@ void ConcurrentLinkedList<KeyType, ValueType>::Clear() {
 }
 
 template<typename KeyType, typename ValueType>
-std::pair<bool, ValueType> ConcurrentLinkedList<KeyType, ValueType>::Lookup(const KeyType &key) const {
+std::pair<bool, ValueType> Bucket<KeyType, ValueType>::Lookup(const KeyType &key) const {
   std::shared_lock<std::shared_timed_mutex> lock(mutex_);
 
   auto temp = head_;
@@ -107,7 +108,7 @@ std::pair<bool, ValueType> ConcurrentLinkedList<KeyType, ValueType>::Lookup(cons
 }
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::Remove(const KeyType &key) {
+bool Bucket<KeyType, ValueType>::Remove(const KeyType &key) {
   if (Empty())
     return kOperationFailed;
   std::lock_guard<std::shared_timed_mutex> lock(mutex_);
@@ -116,8 +117,7 @@ bool ConcurrentLinkedList<KeyType, ValueType>::Remove(const KeyType &key) {
   if (head_->key == key) {
     head_ = head_->next;
     delete temp;
-    if (0 == --size_)
-      tail_ = nullptr;
+    --size_;
     return kOperationSuccess;
   }
 
@@ -132,8 +132,6 @@ bool ConcurrentLinkedList<KeyType, ValueType>::Remove(const KeyType &key) {
     return kOperationFailed;
 
   auto target_node = temp->next;
-  if (target_node == tail_)
-    tail_ = temp;
   temp->next = target_node->next;
   delete target_node;
   size_--;
@@ -141,44 +139,43 @@ bool ConcurrentLinkedList<KeyType, ValueType>::Remove(const KeyType &key) {
 }
 
 template<typename KeyType, typename ValueType>
-void ConcurrentLinkedList<KeyType, ValueType>::PopFront(std::pair<KeyType, ValueType> &result) {
+bool Bucket<KeyType, ValueType>::PopFront(std::pair<KeyType, ValueType> &result) {
   std::lock_guard<std::shared_timed_mutex> lock(mutex_);
   if (Empty())
-    throw std::out_of_range("Trying to pop from empty list");
+    return kOperationFailed;
   result.first = std::move(head_->key);
   result.second = std::move(head_->value);
   auto temp = head_;
   head_ = head_->next;
   delete temp;
-  if (0 == --size_)
-    tail_ = nullptr;
+  --size_;
+  return kOperationSuccess;
 }
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::Insert(const KeyType &key, const ValueType &value) {
+bool Bucket<KeyType, ValueType>::Insert(const KeyType &key, const ValueType &value) {
   auto new_node = std::unique_ptr<ListElement>(new ListElement(key, value));
   return InsertListElement(new_node);
 }
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::Insert(KeyType &&key, ValueType &&value) {
+bool Bucket<KeyType, ValueType>::Insert(KeyType &&key, ValueType &&value) {
   auto new_node = std::unique_ptr<ListElement>(new ListElement(std::forward<KeyType>(key),
                                                                std::forward<ValueType>(value)));
   return InsertListElement(new_node);
 }
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::Insert(std::pair<KeyType, ValueType> &&kv_pair) {
+bool Bucket<KeyType, ValueType>::Insert(std::pair<KeyType, ValueType> &&kv_pair) {
   return Insert(std::move(kv_pair.first), std::move(kv_pair.second));
 };
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::InsertListElement(std::unique_ptr<ListElement> &node) {
+bool Bucket<KeyType, ValueType>::InsertListElement(std::unique_ptr<ListElement> &node) {
   const bool kWasNewElementCreated = true;
   std::lock_guard<std::shared_timed_mutex> lock(mutex_);
   if (Empty()) {
     head_ = node.release();
-    tail_ = head_;
     size_++;
     return kWasNewElementCreated;
   }
@@ -193,26 +190,27 @@ bool ConcurrentLinkedList<KeyType, ValueType>::InsertListElement(std::unique_ptr
     }
   }
 
-  tail_->next = node.release();
-  tail_ = tail_->next;
+  temp = head_;
+  head_ = node.release();
+  head_->next = temp;
   size_++;
   return kWasNewElementCreated;
 }
 
 template<typename KeyType, typename ValueType>
-bool ConcurrentLinkedList<KeyType, ValueType>::Empty() const {
+bool Bucket<KeyType, ValueType>::Empty() const {
   return 0 == size_;
 }
 
 template<typename KeyType, typename ValueType>
-class ConcurrentLinkedList<KeyType, ValueType>::ListIterator : public std::iterator<std::forward_iterator_tag, KeyType> {
+class Bucket<KeyType, ValueType>::ListIterator : public std::iterator<std::forward_iterator_tag, KeyType> {
  public:
   ListIterator() : node_ptr_(nullptr) {}
   ListIterator(const ListIterator &) = delete;
   ListIterator(ListIterator &&rhs) {
     *this = std::forward<ListIterator>(rhs);
   }
-  ListIterator(const ConcurrentLinkedList & list) : node_ptr_(list.head_), lock_(list.mutex_, std::defer_lock) {
+  ListIterator(const Bucket & list) : node_ptr_(list.head_), lock_(list.mutex_, std::defer_lock) {
     if (!list.Empty())
       lock_.lock();
   }
@@ -231,7 +229,6 @@ class ConcurrentLinkedList<KeyType, ValueType>::ListIterator : public std::itera
   bool operator==(const ListIterator &rhs) { return node_ptr_ == rhs.node_ptr_; }
   bool operator!=(const ListIterator &rhs) { return node_ptr_ != rhs.node_ptr_; }
   std::pair<KeyType&, ValueType&> operator*() { return {node_ptr_->key, node_ptr_->value}; }
-  std::pair<KeyType&, ValueType&> operator->() { return {node_ptr_->key, node_ptr_->value}; }
 
   ListIterator& operator=(const ListIterator &) = delete;
   ListIterator& operator=(ListIterator &&rhs) {
@@ -242,16 +239,16 @@ class ConcurrentLinkedList<KeyType, ValueType>::ListIterator : public std::itera
 
  private:
   ListElement *node_ptr_;
-  std::unique_lock<std::shared_timed_mutex> lock_; // synchronious iterator
+  std::unique_lock<std::shared_timed_mutex> lock_; // synchronised iterator
 };
 
 template<typename KeyType, typename ValueType>
-typename ConcurrentLinkedList<KeyType, ValueType>::iterator ConcurrentLinkedList<KeyType, ValueType>::Begin() const {
+typename Bucket<KeyType, ValueType>::iterator Bucket<KeyType, ValueType>::Begin() const {
   return ListIterator(*this);
 }
 
 template<typename KeyType, typename ValueType>
-typename ConcurrentLinkedList<KeyType, ValueType>::iterator ConcurrentLinkedList<KeyType, ValueType>::End() const {
+typename Bucket<KeyType, ValueType>::iterator Bucket<KeyType, ValueType>::End() const {
   return ListIterator();
 }
 

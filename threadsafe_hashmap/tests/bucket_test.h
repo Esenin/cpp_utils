@@ -1,22 +1,30 @@
 #ifndef THREADSAFE_HASHMAP_LINKED_LIST_TEST_H
 #define THREADSAFE_HASHMAP_LINKED_LIST_TEST_H
 
+#ifdef NDEBUG
+#undef NDEBUG
+  #define RESTORE_NDEBUG
+#endif
+
 #include <assert.h>
+
+#ifdef RESTORE_NDEBUG
+#undef RESTORE_NDEBUG
+  #define NDEBUG
+#endif
+
 #include <iostream>
 #include <vector>
 
-#include "../src/concurrent_linked_list.h"
+#include "../src/bucket.h"
 
 using std::make_pair;
 
-using my_concurrency::internals::ConcurrentLinkedList;
+using my_concurrency::internals::Bucket;
 
 namespace tests {
 
-#ifdef NDEBUG
-  #undef NDEBUG
-  #define RESTORE_NDEBUG
-#endif
+
 
 
 class LinkedListTest {
@@ -34,14 +42,14 @@ class LinkedListTest {
 
  private:
   void SingleAppendTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     list.Insert(1, 10);
     assert(1 == list.Size());
     assert(!list.Empty());
   }
 
   void ClearTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     list.Insert(1, 10);
     list.Clear();
     assert(0 == list.Size());
@@ -49,7 +57,7 @@ class LinkedListTest {
   }
 
   void MultiAppendTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     for (int i = 0; i < 2; i++) {
       list.Insert(1, 10);
       list.Insert(2, 20);
@@ -62,7 +70,7 @@ class LinkedListTest {
   }
 
   void LookupTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     int num_elem = 10;
     for (int i = 0; i < num_elem; i++)
       if (i % 2 == 1)
@@ -80,7 +88,7 @@ class LinkedListTest {
   }
 
   void RemoveTest() {
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     assert(false == list.Remove(0));
 
     for (int i = 0; i < 10; i++)
@@ -115,22 +123,16 @@ class LinkedListTest {
 
   void IteratorTest() {
     std::vector<int> keys{1, 2, 3, 10, 20};
-    ConcurrentLinkedList<int, int> list;
+    Bucket<int, int> list;
     for (int x : keys)
       list.Insert(x, x * 10);
 
-    int idx = 0;
-
-    for (auto iter = list.Begin(); iter != list.End(); ++iter, idx++)
-      assert(idx < keys.size() && (*iter).first == keys[idx] && (*iter).second == keys[idx] * 10);
+    auto answer_iter = keys.rbegin();
+    for (auto iter = list.Begin(); iter != list.End(); ++iter, ++answer_iter)
+      assert((*iter).first == *answer_iter && (*iter).second == *answer_iter * 10);
   }
 };
 
-
-#ifdef RESTORE_NDEBUG
-  #undef RESTORE_NDEBUG
-  #define NDEBUG
-#endif
 
 } // namespace tests
 

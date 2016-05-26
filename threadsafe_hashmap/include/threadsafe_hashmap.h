@@ -9,14 +9,14 @@
 #include <shared_mutex>
 #include <utility> //pair
 
-#include "../src/concurrent_linked_list.h"
+#include "../src/bucket.h"
 
 namespace my_concurrency {
 
 template <typename KeyType, typename ValueType>
 class ThreadsafeHashmap {
  public:
-  ThreadsafeHashmap(uint64_t num_buckets = 100);
+  ThreadsafeHashmap(uint64_t num_buckets = 64);
 
   void Insert(const KeyType &key, const ValueType &value);
   std::pair<bool, ValueType> Lookup(const KeyType &key) const;
@@ -36,10 +36,11 @@ class ThreadsafeHashmap {
 
   static constexpr double kIncreaseRate = 2.0;
   static constexpr double kMaxLoadFactor = 0.75;
-  typedef internals::ConcurrentLinkedList<KeyType, ValueType> Bucket;
+  typedef internals::Bucket <KeyType, ValueType> Bucket;
 
   double LoadFactor() const;
 
+  uint64_t Hash(const KeyType &key) const;
   uint64_t PrimaryIndex(const KeyType &key) const;
   uint64_t SecondaryIndex(const KeyType &key) const;
 
@@ -77,13 +78,19 @@ double ThreadsafeHashmap<KeyType, ValueType>::LoadFactor() const {
 }
 
 template <typename KeyType, typename ValueType>
-uint64_t ThreadsafeHashmap<KeyType, ValueType>::PrimaryIndex(const KeyType &key) const{
-  return hash_(key) % num_buckets_primary_;
+uint64_t ThreadsafeHashmap<KeyType, ValueType>::Hash(const KeyType &key) const {
+  uint64_t hash = hash_(key);
+  return hash ^ (hash >> 32);
+}
+
+template <typename KeyType, typename ValueType>
+uint64_t ThreadsafeHashmap<KeyType, ValueType>::PrimaryIndex(const KeyType &key) const {
+  return Hash(key) % num_buckets_primary_;
 }
 
 template <typename KeyType, typename ValueType>
 uint64_t ThreadsafeHashmap<KeyType, ValueType>::SecondaryIndex(const KeyType &key) const {
-  return hash_(key) % num_buckets_secondary_;
+  return Hash(key) % num_buckets_secondary_;
 }
 
 template <typename KeyType, typename ValueType>
@@ -213,7 +220,8 @@ void ThreadsafeHashmap<KeyType, ValueType>::ContiniousMoving() {
 
     while (counter < max_elements_to_move_ && !bucket.Empty()) {
       std::pair<KeyType, ValueType> temp;
-      bucket.PopFront(temp);
+      if (kOperationFailed == bucket.PopFront(temp))
+        break;
       primary_size_--;
       if (secondary_table_[SecondaryIndex(temp.first)].Insert(std::move(temp)))
         secondary_size_++;
@@ -222,7 +230,6 @@ void ThreadsafeHashmap<KeyType, ValueType>::ContiniousMoving() {
     bucket_id++;
   }
 }
-
 
 } // namespace my_concurrency
 
