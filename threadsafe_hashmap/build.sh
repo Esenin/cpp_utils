@@ -7,3 +7,5 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 make 
 echo ">"
 echo Compilation has been finished. Check bin/ directory
+echo Start tests...
+./threadsafe_hashmap && echo Done || echo Tests failed

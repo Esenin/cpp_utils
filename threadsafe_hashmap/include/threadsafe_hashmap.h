@@ -1,7 +1,6 @@
 #ifndef THREADSAFE_HASHMAP_THREADSAFEHASHMAP_H
 #define THREADSAFE_HASHMAP_THREADSAFEHASHMAP_H
 
-#include <assert.h>
 #include <atomic>
 #include <functional> // hash
 #include <math.h> // sqrt
@@ -13,13 +12,23 @@
 
 namespace my_concurrency {
 
+/// @brief ThreadsafeHashmap provides a hashmap behaviour with incremental resizeing for multithreading purposes
+/// @tparam KeyType should have default constructor
+/// @tparam ValueType also
 template <typename KeyType, typename ValueType>
 class ThreadsafeHashmap {
  public:
+  /// @param num_buckets initial number of available buckets
   ThreadsafeHashmap(uint64_t num_buckets = 64);
 
+  /// @brief Add key-value pair to the map. Overwrites value if the element with the same key already exists
   void Insert(const KeyType &key, const ValueType &value);
+
+  /// @return a pair with first element shows if the key was found and
+  //          second element is associated value or default one
   std::pair<bool, ValueType> Lookup(const KeyType &key) const;
+
+  /// @return true if successful removal, false if there is no element with such key
   bool Remove(const KeyType &key);
 
   uint64_t Size() const;
@@ -29,23 +38,31 @@ class ThreadsafeHashmap {
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
  private:
+  /// @brief enum shows current internal state regarding to resizing
   enum class State {
-    kNormal,
-    kResizing
+    kNormal, ///< uses primary table only
+    kResizing ///< uses both of the tables and moves some amount of elements on each insert/remove operation
   };
 
-  static constexpr double kIncreaseRate = 2.0;
-  static constexpr double kMaxLoadFactor = 0.75;
+  static constexpr double kIncreaseRate = 2.0; ///< new table size ratio
+  static constexpr double kMaxLoadFactor = 0.75; ///< triggers resizing
   typedef internals::Bucket <KeyType, ValueType> Bucket;
 
   double LoadFactor() const;
 
   uint64_t Hash(const KeyType &key) const;
+  /// @brief Computes index of the bucket for the primary table
   uint64_t PrimaryIndex(const KeyType &key) const;
+  /// @brief Computes index of the bucket for the secondary table
   uint64_t SecondaryIndex(const KeyType &key) const;
 
+  /// @brief creates secondary table, switches state to 'resizing'. New elements go into secondary table only
   void ResizingBegin();
+
+  /// @brief swaps primary and secondary table, removes secondary empty table, switches state
   void ResizingDone();
+
+  /// @breif called on each insert/remove it moves sqrt(number of buckets in primary table) element to new table
   void ContiniousMoving();
 
 
@@ -58,8 +75,8 @@ class ThreadsafeHashmap {
   std::hash<KeyType> hash_;
 
   State state_;
-  uint64_t max_elements_to_move_; // amount of element to move at one step of incremental resizing
-  mutable std::shared_timed_mutex stateupdate_mutex_;
+  uint64_t max_elements_to_move_ = 1; ///< amount of element to move at one step of incremental resizing
+  mutable std::shared_timed_mutex stateupdate_mutex_; ///< blocks only on changing state (Resizing begin/end)
 
 };
 
@@ -192,13 +209,6 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
   std::lock_guard<std::shared_timed_mutex> lock(stateupdate_mutex_);
   if (state_ != State::kResizing || primary_size_.load(std::memory_order_acquire))
     return;
-
-#ifndef NDEBUG
-  uint64_t exact_sum = 0;
-  for (int i = 0; i < num_buckets_primary_; i++)
-    exact_sum += primary_table_[i].Size();
-  assert(0 == exact_sum);
-#endif
 
   primary_table_.reset(secondary_table_.release()); // deletes old table and set secondary table ptr to nullptr
   primary_size_ = secondary_size_.load(std::memory_order_acquire);
