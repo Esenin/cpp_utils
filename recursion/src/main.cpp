@@ -1,4 +1,16 @@
+#ifdef NDEBUG
+#undef NDEBUG
+  #define RESTORE_NDEBUG // let assert works in testing purposes
+#endif
+
 #include <assert.h>
+
+#ifdef RESTORE_NDEBUG
+#undef RESTORE_NDEBUG
+  #define NDEBUG
+#endif
+
+
 #include <chrono>
 #include <functional>
 #include <inttypes.h>
@@ -69,7 +81,7 @@ void TestSuit() {
 }
 
 void TimeMeasurement() {
-  const int kNumRepeats = 10;
+  const int kNumRepeats = 50;
   const uint64_t kValue = 123456789012345678;
 
   double elapsed_usec = 0;
@@ -83,7 +95,8 @@ void TimeMeasurement() {
     std::this_thread::sleep_for(std::chrono::milliseconds( 10 )); // invalidate CPU's pipeline
   }
 
-  std::cout << "Average execution time: " << elapsed_usec / kNumRepeats << " [us]" << std::endl;
+  std::cout << "Average execution time for f(123456789012345678): " << elapsed_usec / kNumRepeats << " [us]"
+      << std::endl;
 
 }
 

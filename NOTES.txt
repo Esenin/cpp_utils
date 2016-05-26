@@ -1,0 +1,22 @@
+Compiler:
+	In purpose to use C++14 features I use gcc-6. 
+
+Run:
+	for both of the exercises I provide build.sh script. It uses cmake to build target and then it runs the tests. You'll see the output
+
+--------------------
+Notes for Exercise 2:
+--------------------
+
+Hashmap buckets are based on linked-list approach.
+Collision resolution is simple chaining.
+
+There are read-write mutexes within each bucket (read-write mutexes for each linked-list node may cause worthless overhead). 
+It allows multiple readers to lookup. While many threads are able to insert/remove simultaneously in different buckets, only one can do it for single bucket.
+
+
+Table resizing:
+hashtable is capable to increase it's number of buckets in incremental way. 
+There are global lock in the map in order to switch it's internal state (switch primary/secondary tables, etc.). 
+On each insert/remove call within 'resizing' state the map moves some amount of elements from the old table to the new one. 
+The map uses serialised atomic counters to track size of the tables.
