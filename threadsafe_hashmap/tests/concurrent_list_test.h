@@ -22,12 +22,13 @@ namespace tests {
 
 class ConcurrentListTest {
  public:
-  ConcurrentListTest() : keys{1, 2, 5, 7, 11, 13, 17, 19, 101} {}
+  ConcurrentListTest() : keys{1, 2, 5, 7, 11, 13, 17, 19} {}
 
   void TestAll() {
     ManyReadersTest();
     WriterReaderTest();
     ManyWriters();
+    SerialLockReleaseTest();
 
     std::cout << "Concurrent part of the linked list tests passed." << std::endl;
 
@@ -37,6 +38,10 @@ class ConcurrentListTest {
   void LoadList(ConcurrentLinkedList<int,int> &list) {
     for (int x : keys)
       list.Insert(x, x * 10);
+  }
+
+  int ListSumSerialized(ConcurrentLinkedList<int, int> &list) {
+    return std::accumulate(list.begin(), list.end(), 0, [] (int acc, auto key_value) { return acc + key_value.second; });
   }
 
   std::vector<int> keys;
@@ -111,8 +116,38 @@ class ConcurrentListTest {
     odd_writer.join();
     even_writer.join();
 
-    assert(5050 == std::accumulate(list.begin(), list.end(), 0,
-                                   [] (int acc, auto key_value) { return acc + key_value.second; }));
+    assert(5050 == ListSumSerialized(list));
+  }
+
+  void SerialLockReleaseTest() {
+    ConcurrentLinkedList<int, int> list;
+
+    int num_elements = 101;
+
+    auto writer = [&list, num_elements] () {
+      for (int i = 0; i < num_elements; i++)
+        list.Insert(i, i);
+    };
+
+    list.Insert(0, 0);
+    auto iter = list.begin(); // locks the entire list
+
+    std::thread writer_thread(writer);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    assert(1 == list.Size());
+
+    while (++iter != list.end()) {} // should release the lock
+    ++iter; // check for double-unlock behaviour
+    ++iter;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    assert(list.Size() > 1);
+
+    writer_thread.join();
+
+    assert(5050 == ListSumSerialized(list));
   }
 };
 

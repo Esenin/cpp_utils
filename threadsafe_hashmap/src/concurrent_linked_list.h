@@ -158,11 +158,19 @@ template<typename KeyType, typename ValueType>
 class ConcurrentLinkedList<KeyType, ValueType>::ListIterator : public std::iterator<std::forward_iterator_tag, KeyType> {
  public:
   ListIterator() : node_ptr_(nullptr) {}
-  ListIterator(const ConcurrentLinkedList & list) : node_ptr_(list.head_), lock_(list.mutex_) {}
+  ListIterator(const ConcurrentLinkedList & list) : node_ptr_(list.head_), lock_(list.mutex_, std::defer_lock) {
+    if (!list.Empty())
+      lock_.lock();
+  }
 
   ListIterator& operator++() {
-    if (node_ptr_)
+    if (node_ptr_) {
       node_ptr_ = node_ptr_->next;
+      if (nullptr == node_ptr_ && lock_.owns_lock()) {
+        lock_.unlock();
+        lock_.release();
+      }
+    }
     return *this;
   }
 
