@@ -177,7 +177,7 @@ void ThreadsafeHashmap<KeyType, ValueType>::Clear() {
 template <typename KeyType, typename ValueType>
 void ThreadsafeHashmap<KeyType, ValueType>::ResizingBegin() {
   std::lock_guard<std::shared_timed_mutex> lock(stateupdate_mutex_);
-  if (state_ != State::kNormal)
+  if (state_ != State::kNormal || LoadFactor() < kMaxLoadFactor)
     return;
 
   num_buckets_secondary_ = static_cast<uint64_t> (num_buckets_primary_ * kIncreaseRate);
@@ -190,7 +190,7 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingBegin() {
 template <typename KeyType, typename ValueType>
 void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
   std::lock_guard<std::shared_timed_mutex> lock(stateupdate_mutex_);
-  if (state_ != State::kResizing)
+  if (state_ != State::kResizing || primary_size_.load(std::memory_order_acquire))
     return;
 
 #ifndef NDEBUG
