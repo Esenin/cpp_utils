@@ -81,6 +81,7 @@ class LinkedListTest {
 
   void RemoveTest() {
     ConcurrentLinkedList<int, int> list;
+    assert(false == list.Remove(0));
 
     for (int i = 0; i < 10; i++)
       if (i % 2 == 0)
@@ -120,7 +121,7 @@ class LinkedListTest {
 
     int idx = 0;
 
-    for (auto iter = list.begin(); iter != list.end(); ++iter, idx++)
+    for (auto iter = list.Begin(); iter != list.End(); ++iter, idx++)
       assert(idx < keys.size() && (*iter).first == keys[idx] && (*iter).second == keys[idx] * 10);
   }
 };
