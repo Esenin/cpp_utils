@@ -73,6 +73,7 @@ class ConcurrentListTest {
 
     for (auto &result : results)
       assert(750 == result.get());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void WriterReaderTest() {
@@ -104,6 +105,7 @@ class ConcurrentListTest {
     auto result = std::async(std::launch::async, sum_reader);
     writer_thread.join();
     assert(20100 == result.get());  // 20100 = sum(1 +... + 200)
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ManyWriters() {
@@ -122,6 +124,7 @@ class ConcurrentListTest {
     even_writer.join();
 
     assert(5050 == ListSumSerialized(list));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void SerialLockReleaseTest() {
@@ -153,6 +156,7 @@ class ConcurrentListTest {
     writer_thread.join();
 
     assert(5050 == ListSumSerialized(list));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 };
 

@@ -53,6 +53,7 @@ class ConcurrentMapTest {
     assert(Map::kOperationFailed == map.Remove(1));
     assert(0 == map.Size() && map.Empty());
     map.Clear();
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ManyOperationsTest() {
@@ -74,6 +75,7 @@ class ConcurrentMapTest {
     map.Clear();
     map.Insert(1, 10);
     assert(make_pair(true, 10) == map.Lookup(1));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ResizeTest() {
@@ -86,11 +88,16 @@ class ConcurrentMapTest {
 
     for (int i = 0; i < data_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ParallelInsert() {
-    Map map(1000);
-    int chunk_size = 100;
+    uint64_t num_buckets = 1000;
+    Map map(num_buckets);
+    int chunk_size = 200;
+
+    assert(3 * chunk_size < 0.75 * num_buckets); // This test doesn't include resizing. Next ones does
+
     auto writer = [&map, chunk_size] (int start_value) {
       for (int i = start_value; i < start_value + chunk_size; i++)
         map.Insert(i, i * 10);
@@ -106,6 +113,20 @@ class ConcurrentMapTest {
 
     for (int i = 0; i < 3 * chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
+
+    map.Clear();
+    int start_value = 123456;
+    t1 = std::thread(writer, start_value);
+    t2 = std::thread(writer, start_value);
+    t3 = std::thread(writer, start_value);
+    t1.join();
+    t2.join();
+    t3.join();
+
+    assert(chunk_size == map.Size());
+    for (int i = start_value; i < start_value + chunk_size; i++)
+      assert(make_pair(true, i * 10) == map.Lookup(i));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ParallelResizeTest() {
@@ -126,6 +147,7 @@ class ConcurrentMapTest {
     for (int i = 0; i < 3 * chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
     assert(3 * chunk_size == map.Size());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ConcurrentWriteRemoveTest() {
@@ -146,7 +168,7 @@ class ConcurrentMapTest {
     std::thread t1(writer);
     std::thread t2(remove_even);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     assert(map.Size() > 0);
 
     t1.join();
@@ -155,6 +177,7 @@ class ConcurrentMapTest {
       assert(make_pair((i & 1) == 1, (i & 1) == 1? i * 10 : 0) == map.Lookup(i));
 
     assert(data_size / 2 == map.Size());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
 

@@ -24,9 +24,6 @@ using my_concurrency::internals::Bucket;
 
 namespace tests {
 
-
-
-
 class LinkedListTest {
  public:
   void TestAll() {
@@ -46,6 +43,7 @@ class LinkedListTest {
     list.Insert(1, 10);
     assert(1 == list.Size());
     assert(!list.Empty());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ClearTest() {
@@ -54,6 +52,7 @@ class LinkedListTest {
     list.Clear();
     assert(0 == list.Size());
     assert(list.Empty());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void MultiAppendTest() {
@@ -67,6 +66,7 @@ class LinkedListTest {
       list.Clear();
       assert(0 == list.Size());
     }
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void LookupTest() {
@@ -85,6 +85,7 @@ class LinkedListTest {
       } else {
         assert(false == list.Lookup(i).first);
       }
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void RemoveTest() {
@@ -119,6 +120,7 @@ class LinkedListTest {
     assert(4 == list.Size());
     list.Clear();
     assert(0 == list.Size() && list.Empty());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void IteratorTest() {
@@ -130,6 +132,7 @@ class LinkedListTest {
     auto answer_iter = keys.rbegin();
     for (auto iter = list.Begin(); iter != list.End(); ++iter, ++answer_iter)
       assert((*iter).first == *answer_iter && (*iter).second == *answer_iter * 10);
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 };
 
