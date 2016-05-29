@@ -12,20 +12,28 @@
 
 namespace my_concurrency {
 
-/// @brief ThreadsafeHashmap provides a hashmap behaviour with incremental resizeing for multithreading purposes
+/// @brief ThreadsafeHashmap provides a hashmap behaviour with incremental resizing for multithreading purposes
 /// @tparam KeyType should have default constructor
-/// @tparam ValueType also
+/// @tparam ValueType should have default constructor
 template <typename KeyType, typename ValueType>
 class ThreadsafeHashmap {
  public:
   /// @param num_buckets initial number of available buckets
-  ThreadsafeHashmap(uint64_t num_buckets = 64);
+  /// @param hasher custom hash function. It must always return the same value for the same argument
+  ThreadsafeHashmap(uint64_t num_buckets = 64, std::function<uint64_t(KeyType)> hasher = std::hash<KeyType>());
+  /// @brief snapshot copy
+  ThreadsafeHashmap(const ThreadsafeHashmap &rhs);
+  /// @brief Copying of rvalue object assumes no other thread uses this map
+  ///        therefore constructor thread-unsafe for param
+  ThreadsafeHashmap(ThreadsafeHashmap &&rhs);
 
-  /// @brief Add key-value pair to the map. Overwrites value if the element with the same key already exists
+  ~ThreadsafeHashmap() = default;
+
+  /// @brief Add key-value pair to the map. Overwrites value if an element with the same key already exists
   void Insert(const KeyType &key, const ValueType &value);
 
   /// @return a pair with first element shows if the key was found and
-  //          second element is associated value or default one
+  ///          second element is associated value or default one
   std::pair<bool, ValueType> Lookup(const KeyType &key) const;
 
   /// @return true if successful removal, false if there is no element with such key
@@ -34,6 +42,10 @@ class ThreadsafeHashmap {
   uint64_t Size() const;
   void Clear();
   bool Empty() const;
+
+  /// makes a snapshot copy
+  ThreadsafeHashmap &operator=(const ThreadsafeHashmap &rhs);
+  ThreadsafeHashmap &operator=(ThreadsafeHashmap &&rhs);
 
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
@@ -67,27 +79,71 @@ class ThreadsafeHashmap {
 
 
   uint64_t num_buckets_primary_;
-  uint64_t num_buckets_secondary_;
+  uint64_t num_buckets_secondary_ = 0;
   std::unique_ptr<Bucket[]> primary_table_;
-  std::unique_ptr<Bucket[]> secondary_table_;
+  std::unique_ptr<Bucket[]> secondary_table_ = nullptr;
   std::atomic_ullong primary_size_;
   std::atomic_ullong secondary_size_;
-  std::hash<KeyType> hash_;
+  std::function<uint32_t(KeyType)> hash_ = std::hash<KeyType>();
 
-  State state_;
+  State state_ = State::kNormal;
   uint64_t max_elements_to_move_ = 1; ///< amount of element to move at one step of incremental resizing
   mutable std::shared_timed_mutex stateupdate_mutex_; ///< blocks only on changing state (Resizing begin/end)
-
 };
 
 template <typename KeyType, typename ValueType>
-ThreadsafeHashmap<KeyType, ValueType>::ThreadsafeHashmap(uint64_t num_buckets)
-    : num_buckets_primary_(num_buckets), num_buckets_secondary_(0),
+ThreadsafeHashmap<KeyType, ValueType>::ThreadsafeHashmap(const ThreadsafeHashmap &rhs) {
+  *this = rhs;
+}
+
+template <typename KeyType, typename ValueType>
+ThreadsafeHashmap<KeyType, ValueType>::ThreadsafeHashmap(ThreadsafeHashmap &&rhs) {
+  *this = std::forward(rhs);
+}
+
+template <typename KeyType, typename ValueType>
+ThreadsafeHashmap<KeyType, ValueType>::ThreadsafeHashmap(uint64_t num_buckets, std::function<uint64_t(KeyType)> hasher)
+    : num_buckets_primary_(num_buckets),
       primary_table_(new Bucket[num_buckets]),
-      secondary_table_(nullptr),
       primary_size_(0), secondary_size_(0),
-      state_(State::kNormal)
-      {}
+      hash_(hasher) { }
+
+template <typename KeyType, typename ValueType>
+ThreadsafeHashmap<KeyType, ValueType> &ThreadsafeHashmap<KeyType, ValueType>::operator=(ThreadsafeHashmap &&rhs) {
+  num_buckets_primary_ = rhs.num_buckets_primary_;
+  num_buckets_secondary_ = rhs.num_buckets_secondary_;
+  primary_table_ = std::move(rhs.primary_table_);
+  secondary_table_ = std::move(rhs.secondary_table_);
+  primary_size_, rhs.primary_size_.load(std::memory_order_acquire);
+  secondary_size_ = rhs.secondary_size_.load(std::memory_order_acquire);
+  hash_ = std::move(rhs.hash_);
+  state_ = rhs.state_;
+  max_elements_to_move_ = rhs.max_elements_to_move_;
+  stateupdate_mutex_ = std::move(rhs.stateupdate_mutex_);
+  return *this;
+}
+
+template <typename KeyType, typename ValueType>
+ThreadsafeHashmap<KeyType, ValueType> &ThreadsafeHashmap<KeyType, ValueType>::operator=(const ThreadsafeHashmap &rhs) {
+  std::lock_guard<std::shared_timed_mutex>(rhs.stateupdate_mutex_);
+  num_buckets_primary_ = rhs.num_buckets_primary_;
+  num_buckets_secondary_ = rhs.num_buckets_secondary_;
+  primary_table_.reset(new Bucket[num_buckets_primary_]);
+  secondary_table_.reset(new Bucket[num_buckets_secondary_]);
+  primary_size_ = rhs.primary_size_.load(std::memory_order_acquire);
+  secondary_size_ = rhs.secondary_size_.load(std::memory_order_acquire);
+  hash_ = rhs.hash_;
+  state_ = rhs.state_;
+  max_elements_to_move_ = rhs.max_elements_to_move_;
+
+  for (uint64_t i = 0; i < rhs.num_buckets_primary_; i++) {
+    primary_table_[i] = rhs.primary_table_[i];
+  }
+  for (uint64_t i = 0; i < rhs.num_buckets_secondary_; i++) {
+    secondary_table_[i] = rhs.secondary_table_[i];
+  }
+  return *this;
+}
 
 template <typename KeyType, typename ValueType>
 double ThreadsafeHashmap<KeyType, ValueType>::LoadFactor() const {
@@ -112,8 +168,7 @@ uint64_t ThreadsafeHashmap<KeyType, ValueType>::SecondaryIndex(const KeyType &ke
 
 template <typename KeyType, typename ValueType>
 uint64_t ThreadsafeHashmap<KeyType, ValueType>::Size() const {
-  return primary_size_.load(std::memory_order_acquire) +
-      (state_ == State::kResizing ? secondary_size_.load(std::memory_order_acquire) : 0);
+  return primary_size_.load(std::memory_order_acquire) + secondary_size_.load(std::memory_order_acquire);
 }
 
 template <typename KeyType, typename ValueType>
@@ -179,13 +234,13 @@ bool ThreadsafeHashmap<KeyType, ValueType>::Remove(const KeyType &key) {
 
 template <typename KeyType, typename ValueType>
 void ThreadsafeHashmap<KeyType, ValueType>::Clear() {
-  std::shared_lock<std::shared_timed_mutex> lock(stateupdate_mutex_);
-  for (int i = 0; i < num_buckets_primary_; i++)
+  std::lock_guard<std::shared_timed_mutex> lock(stateupdate_mutex_);
+  for (uint64_t i = 0; i < num_buckets_primary_; i++)
     primary_table_[i].Clear();
   primary_size_ = 0;
 
   if (state_ == State::kResizing) {
-    for (int i = 0; i < num_buckets_secondary_; i++)
+    for (uint64_t i = 0; i < num_buckets_secondary_; i++)
       secondary_table_[i].Clear();
     secondary_size_ = 0;
   }
@@ -221,8 +276,8 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
 
 template <typename KeyType, typename ValueType>
 void ThreadsafeHashmap<KeyType, ValueType>::ContiniousMoving() {
-  int counter = 0;
-  int bucket_id = 0;
+  uint64_t counter = 0;
+  uint64_t bucket_id = 0;
   while (counter < max_elements_to_move_ &&
       primary_size_.load(std::memory_order_acquire) > 0 &&
       bucket_id < num_buckets_primary_) {

@@ -17,6 +17,5 @@ int main() {
   map_test.TestAll();
 
   std::cout << "All tests passed.\n" << std::endl;
-
   return 0;
 }

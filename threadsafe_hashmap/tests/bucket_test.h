@@ -76,7 +76,7 @@ class LinkedListTest {
       if (i % 2 == 1)
         list.Insert(i, i * 10);
 
-    assert(num_elem / 2 == list.Size());
+    assert(num_elem / 2 == (int)list.Size());
 
     for (int i = 0; i < num_elem + 1; i++)
       if (i % 2 == 1) {
@@ -111,13 +111,18 @@ class LinkedListTest {
     assert(false == list.Remove(8));
     assert(2 == list.Size());
 
-    assert(list.Lookup(2).first && list.Lookup(6).first);
+    assert(list.Remove(6));
+    assert(make_pair(false, 0) == list.Lookup(-1));
+    assert(make_pair(true, 20) == list.Lookup(2));
+    assert(list.Remove(2));
+    assert(make_pair(false, 0) == list.Lookup(2));
+    assert(0 == list.Size());
 
     list.Insert(0, 0);
     assert(make_pair(true, 0) == list.Lookup(0));
     list.Insert(20, 200);
     assert(make_pair(true, 200) == list.Lookup(20));
-    assert(4 == list.Size());
+    assert(2 == list.Size());
     list.Clear();
     assert(0 == list.Size() && list.Empty());
     std::cout << "\t" << __func__ << " passed" << std::endl;

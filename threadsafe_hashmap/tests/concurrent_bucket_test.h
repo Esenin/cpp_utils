@@ -34,7 +34,6 @@ class ConcurrentListTest {
     ManyReadersTest();
     WriterReaderTest();
     ManyWriters();
-    SerialLockReleaseTest();
 
     std::cout << "Concurrent part of the linked list tests passed." << std::endl;
   }
@@ -43,10 +42,6 @@ class ConcurrentListTest {
   void LoadList(Bucket<int,int> &list) {
     for (int x : keys)
       list.Insert(x, x * 10);
-  }
-
-  int ListSumSerialized(Bucket<int, int> &list) {
-    return std::accumulate(list.Begin(), list.End(), 0, [] (int acc, auto key_value) { return acc + key_value.second; });
   }
 
   std::vector<int> keys;
@@ -67,7 +62,7 @@ class ConcurrentListTest {
 
 
     std::vector<std::future<int>> results;
-    for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+    for (uint32_t i = 0; i < std::thread::hardware_concurrency(); i++) {
       results.push_back(std::async(std::launch::async, sum_list));
     }
 
@@ -123,41 +118,11 @@ class ConcurrentListTest {
     odd_writer.join();
     even_writer.join();
 
-    assert(5050 == ListSumSerialized(list));
+    assert(5050 == std::accumulate(list.Begin(), list.End(), 0,
+                                   [] (int acc, auto key_value) { return acc + key_value.second; }));
     std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
-  void SerialLockReleaseTest() {
-    Bucket<int, int> list;
-
-    int num_elements = 101;
-
-    auto writer = [&list, num_elements] () {
-      for (int i = 0; i < num_elements; i++)
-        list.Insert(i, i);
-    };
-
-    list.Insert(0, 0);
-    auto iter = list.Begin(); // locks the entire list
-
-    std::thread writer_thread(writer);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    assert(1 == list.Size());
-
-    while (++iter != list.End()) {} // should release the lock
-    ++iter; // check for double-unlock behaviour
-    ++iter;
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    assert(list.Size() > 1);
-
-    writer_thread.join();
-
-    assert(5050 == ListSumSerialized(list));
-    std::cout << "\t" << __func__ << " passed" << std::endl;
-  }
 };
 
 } // namespace tests

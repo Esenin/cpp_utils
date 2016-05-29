@@ -13,6 +13,9 @@
   #define NDEBUG
 #endif
 
+#include <chrono>
+#include <random>
+#include <set>
 #include <vector>
 
 #include "../include/threadsafe_hashmap.h"
@@ -25,11 +28,13 @@ class ConcurrentMapTest {
  public:
   void TestAll() {
     SimpleTests();
+    GenericTest();
     ManyOperationsTest();
     ResizeTest();
     ParallelInsert();
     ParallelResizeTest();
     ConcurrentWriteRemoveTest();
+//    HighLoadTest();
 
     std::cout << "Concurrent Hashmap tests passed." << std::endl;
   }
@@ -53,7 +58,45 @@ class ConcurrentMapTest {
     assert(Map::kOperationFailed == map.Remove(1));
     assert(0 == map.Size() && map.Empty());
     map.Clear();
+
+    for (int i = 0; i < 10; i++)
+      map.Insert(i, i * 10);
+
+    Map copied = map;
+    copied = map;
+
+    for (int i = 0; i < 10; i++)
+      assert(make_pair(true, i * 10) == copied.Lookup(i));
+    map.Clear();
+    assert(10 == copied.Size());
     std::cout << "\t" << __func__ << " passed" << std::endl;
+  }
+
+  void GenericTest() {
+    struct SomeStruct {
+      std::vector<double> values;
+      bool operator==(const SomeStruct &rhs) const {
+        return values == rhs.values;
+      }
+    };
+
+    SomeStruct x;
+    x.values.push_back(1);
+    SomeStruct y;
+    x.values.push_back(2);
+    ThreadsafeHashmap<int, SomeStruct> map_to;
+    map_to.Insert(1, x);
+    map_to.Insert(2, y);
+    assert(make_pair(true, x) == map_to.Lookup(1));
+
+    auto custom_hash = [] (const SomeStruct &t) {
+      return t.values.size() == 0? 0ull : (uint64_t) t.values.front();
+    };
+
+    ThreadsafeHashmap<SomeStruct, SomeStruct> map(64, custom_hash);
+    map.Insert(x, y);
+    map.Insert(y, x);
+    assert(make_pair(true, y) == map.Lookup(x));
   }
 
   void ManyOperationsTest() {
@@ -65,11 +108,11 @@ class ConcurrentMapTest {
     for (int x : keys)
       assert(make_pair(true, x * 10) == map.Lookup(x));
 
-    for (int i = 0; i < keys.size() / 2; i++)
+    for (uint64_t i = 0; i < keys.size() / 2; i++)
       assert(Map::kOperationSuccess == map.Remove(keys[i]));
 
     assert(keys.size() - keys.size() / 2 == map.Size());
-    for (int i = 0; i < keys.size(); i++)
+    for (uint64_t i = 0; i < keys.size(); i++)
       assert(make_pair(i >= keys.size() / 2, i < keys.size() / 2? 0 :  keys[i] * 10) == map.Lookup(keys[i]));
 
     map.Clear();
@@ -92,7 +135,7 @@ class ConcurrentMapTest {
   }
 
   void ParallelInsert() {
-    uint64_t num_buckets = 1000;
+    int num_buckets = 1000;
     Map map(num_buckets);
     int chunk_size = 200;
 
@@ -123,7 +166,7 @@ class ConcurrentMapTest {
     t2.join();
     t3.join();
 
-    assert(chunk_size == map.Size());
+    assert(chunk_size == (int)map.Size());
     for (int i = start_value; i < start_value + chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
     std::cout << "\t" << __func__ << " passed" << std::endl;
@@ -146,7 +189,7 @@ class ConcurrentMapTest {
 
     for (int i = 0; i < 3 * chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
-    assert(3 * chunk_size == map.Size());
+    assert(3 * chunk_size == (int)map.Size());
     std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
@@ -176,7 +219,79 @@ class ConcurrentMapTest {
     for (int i = 0; i < data_size; i++)
       assert(make_pair((i & 1) == 1, (i & 1) == 1? i * 10 : 0) == map.Lookup(i));
 
-    assert(data_size / 2 == map.Size());
+    assert(data_size / 2 == (int)map.Size());
+    std::cout << "\t" << __func__ << " passed" << std::endl;
+  }
+
+  void HighLoadTest() {
+    const int kHwThreads = std::thread::hardware_concurrency();
+    if (kHwThreads < 3)
+      return;
+    std::cout << "\t> " << __func__ << " is in progress... (takes some time, ~ 1 min)" << std::endl;
+
+    Map map;
+    std::default_random_engine generator(1);
+    std::normal_distribution<double> distribution(0, 1*1000000);
+    const uint64_t kDataSize = 5 * 1024 * 1024 / sizeof(int); // 5 MB
+    std::vector<int> data(kDataSize, 0);
+    for (uint64_t i = 0; i < kDataSize; i++)
+      data[i] = static_cast<int>(distribution(generator));
+    std::set<int> uniq_data(data.begin(), data.end());
+
+    auto writer = [&data, &map] (int start_idx) {
+      for (uint64_t counter = start_idx; counter < data.size(); counter++) {
+        uint64_t idx = counter % data.size();
+        map.Insert(data[idx], data[idx] * 10);
+      }
+    };
+
+    auto consumer = [&map, &uniq_data] (bool remove, bool check_ones)  {
+      for (auto key : uniq_data) {
+        while (false == map.Lookup(key).first) {
+          assert(!check_ones);
+          std::this_thread::yield();
+        }
+
+        assert(key * 10 == map.Lookup(key).second);
+        if (remove)
+          assert(map.Remove(key));
+      }
+    };
+
+    std::cout << "\t\t..."  << std::endl;
+
+    std::vector<std::thread> threads;
+
+    for (int i = 0; i < kHwThreads - 1; i++)
+      threads.push_back(std::thread(writer, i * kDataSize / (kHwThreads - 1)));
+
+    std::thread reader = std::thread(consumer, false, false);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    assert(map.Size() > 0);
+
+    for (auto &thread: threads) {
+      thread.join();
+      std::cout << "\t\twriter thread finished" << std::endl;
+    }
+
+    reader.join();
+    std::cout << "\t\treader thread finished" << std::endl;
+
+    consumer(true, true);
+    assert(0 == map.Size());
+
+    std::cout << "\t\t..."  << std::endl;
+
+    for (int i = 0; i < kHwThreads - 1; i++)
+      threads[i] = std::thread(writer, i * kDataSize / (kHwThreads - 1));
+    consumer(true, false);
+
+    for (auto &thread: threads)
+      thread.join();
+
+    map.Clear();
+    assert(0 == map.Size());
     std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
