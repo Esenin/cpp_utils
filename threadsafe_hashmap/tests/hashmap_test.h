@@ -31,6 +31,7 @@ class ConcurrentMapTest {
     GenericTest();
     ManyOperationsTest();
     ResizeTest();
+    ResizeOverwriteTest();
     ParallelInsert();
     ParallelResizeTest();
     ConcurrentWriteRemoveTest();
@@ -131,6 +132,29 @@ class ConcurrentMapTest {
 
     for (int i = 0; i < data_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
+  }
+
+  void ResizeOverwriteTest() {
+    int num_buckets = 100;
+    Map map(num_buckets);
+    int key = 0;
+    for (; key < Map::kMaxLoadFactor * num_buckets + 1; key++)
+      map.Insert(key, 1);
+    // now the map is in resizing state
+    // The inserted values are in old map. Now we are writing to the new one
+    map.Insert(50, 999);
+    map.Insert(51, 999);
+    map.Insert(60, 999);
+
+    // continue to fill the table in purpose to close resizing state
+    for (int i = 0; i < 15; i++)
+      map.Insert(key + i, 1);
+
+    for (int i = 0; i < key + 15; i++)
+      assert(make_pair(true, (i == 50 || i == 51 || i == 60)? 999 : 1) == map.Lookup(i));
+
+
     std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 

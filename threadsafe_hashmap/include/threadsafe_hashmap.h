@@ -49,6 +49,8 @@ class ThreadsafeHashmap {
 
   constexpr static bool kOperationSuccess = true;
   constexpr static bool kOperationFailed = false;
+  static constexpr double kIncreaseRate = 2.0; ///< new table size ratio
+  static constexpr double kMaxLoadFactor = 0.75; ///< triggers resizing
  private:
   /// @brief enum shows current internal state regarding to resizing
   enum class State {
@@ -56,8 +58,6 @@ class ThreadsafeHashmap {
     kResizing ///< uses both of the tables and moves some amount of elements on each insert/remove operation
   };
 
-  static constexpr double kIncreaseRate = 2.0; ///< new table size ratio
-  static constexpr double kMaxLoadFactor = 0.75; ///< triggers resizing
   typedef internals::Bucket <KeyType, ValueType> Bucket;
 
   double LoadFactor() const;
@@ -75,7 +75,7 @@ class ThreadsafeHashmap {
   void ResizingDone();
 
   /// @breif called on each insert/remove it moves sqrt(number of buckets in primary table) element to new table
-  void ContiniousMoving();
+  void ContinuousMoving();
 
 
   uint64_t num_buckets_primary_;
@@ -188,9 +188,11 @@ void ThreadsafeHashmap<KeyType, ValueType>::Insert(const KeyType &key, const Val
       ResizingBegin();
     }
   } else {
+    if (primary_table_[PrimaryIndex(key)].Remove(key))
+      primary_size_--;
     if (secondary_table_[SecondaryIndex(key)].Insert(key, value))
       secondary_size_++;
-    ContiniousMoving();
+    ContinuousMoving();
     if (0 == primary_size_.load(std::memory_order_acquire)) {
       lock.unlock();
       ResizingDone();
@@ -224,7 +226,7 @@ bool ThreadsafeHashmap<KeyType, ValueType>::Remove(const KeyType &key) {
     if ((was_removed = secondary_table_[SecondaryIndex(key)].Remove(key)))
       secondary_size_--;
   }
-  ContiniousMoving();
+  ContinuousMoving();
   if (0 == primary_size_.load(std::memory_order_acquire)) {
     lock.unlock();
     ResizingDone();
@@ -275,7 +277,7 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
 }
 
 template <typename KeyType, typename ValueType>
-void ThreadsafeHashmap<KeyType, ValueType>::ContiniousMoving() {
+void ThreadsafeHashmap<KeyType, ValueType>::ContinuousMoving() {
   uint64_t counter = 0;
   uint64_t bucket_id = 0;
   while (counter < max_elements_to_move_ &&
@@ -287,9 +289,9 @@ void ThreadsafeHashmap<KeyType, ValueType>::ContiniousMoving() {
       std::pair<KeyType, ValueType> temp;
       if (kOperationFailed == bucket.PopFront(temp))
         break;
-      primary_size_--;
       if (secondary_table_[SecondaryIndex(temp.first)].Insert(std::move(temp)))
         secondary_size_++;
+      primary_size_--;
       counter++;
     }
     bucket_id++;
