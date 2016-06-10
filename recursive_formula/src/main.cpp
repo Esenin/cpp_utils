@@ -46,7 +46,7 @@ void PrecalculatedTests(std::function<uint64_t(uint64_t)> solver) {
   const std::vector<uint64_t> input {0, 1, 2, 3, 256, 258, 1023, 1024, 123456, 987654321, 123456789012345};
   const std::vector<uint64_t> answers {1, 1, 1, 2, 1, 14, 89, 1, 59, 167576, 140274140};
 
-  for (int i = 0; i < input.size(); i++) {
+  for (uint64_t i = 0; i < input.size(); i++) {
     assert(solver(input[i]) == answers[i]);
   }
 }

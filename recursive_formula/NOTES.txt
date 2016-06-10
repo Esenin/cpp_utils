@@ -1,0 +1,30 @@
+Compiler:
+	In purpose to use C++14 features I compile using gcc-6. It seems that clang-3.6 with -std=c++1y  works OK too.
+
+Run:
+	for both of the exercises I provide build.sh script. It uses cmake to build target and then it runs the tests. You'll see the output
+
+Tests:
+	STL asserts are used in tests. Notice: NDEBUG macros was switched off in the moment of including assert.h
+
+--------------------
+Notes for Exercise 2:
+--------------------
+
+Hashmap buckets are based on linked-list approach.
+Collision resolution is simple chaining.
+
+There are read-write mutexes within each bucket (read-write mutexes for each linked-list node may cause too much overhead). 
+It allows multiple readers to lookup. While many threads are able to insert/remove simultaneously in different buckets, only one can do it for single bucket.
+
+
+Table resizing:
+hashtable is capable to increase it's number of buckets in incremental way. 
+There are global exclusive lock in the map in order to switch it's internal state only (switch primary/secondary tables, etc.). 
+On each insert/remove call within 'resizing' state the map moves some amount of elements from the old table to the new one. 
+The map uses atomic counters to track size of the tables.
+
+--------------------
+====================
+This is second version of these source code. The main reason for this is for my moving from QtCreator to Clion IDE. First time I didn't notice that Clion doesn't turn on -Wall warnings by default, so there are pretty much of them in my first version. Shame of me. I fixed it :-)
+
