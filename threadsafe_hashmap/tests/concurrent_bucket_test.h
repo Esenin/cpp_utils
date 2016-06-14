@@ -20,6 +20,7 @@
 #include <future>
 
 #include "../src/bucket.h"
+#include "hashmap_test.h"
 
 using my_concurrency::internals::Bucket;
 
@@ -34,6 +35,7 @@ class ConcurrentListTest {
     ManyReadersTest();
     WriterReaderTest();
     ManyWriters();
+    ExclusiveIteratorTest();
 
     std::cout << "Concurrent part of the linked list tests passed." << std::endl;
   }
@@ -118,9 +120,37 @@ class ConcurrentListTest {
     odd_writer.join();
     even_writer.join();
 
-    assert(5050 == std::accumulate(list.Begin(), list.End(), 0,
+    assert(5050 == std::accumulate(list.BeginSync(), list.End(), 0,
                                    [] (int acc, auto key_value) { return acc + key_value.second; }));
     std::cout << "\t" << __func__ << " passed" << std::endl;
+  }
+
+  void ExclusiveIteratorTest() {
+    Bucket<int, int> list;
+    list.Insert(10, 100);
+    list.Insert(20, 200);
+    list.Insert(30, 300);
+
+    auto iter = list.BeginSync();
+
+    assert((*iter).first * 10 == (*iter).second);
+    ++iter;
+
+    std::thread writer([&]() { this->LoadList(list); });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    assert(3 == list.Size());
+
+    assert((*iter).first * 10 == (*iter).second);
+    ++iter;
+    assert((*iter).first * 10 == (*iter).second);
+
+    ++iter; // mutex unlock
+    writer.join();
+
+    assert(keys.size() + 3 == list.Size());
+
   }
 
 };

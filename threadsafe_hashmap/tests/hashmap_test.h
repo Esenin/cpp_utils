@@ -35,7 +35,7 @@ class ConcurrentMapTest {
     ParallelInsert();
     ParallelResizeTest();
     ConcurrentWriteRemoveTest();
-//    HighLoadTest();
+    HighLoadTest();
 
     std::cout << "Concurrent Hashmap tests passed." << std::endl;
   }
@@ -98,6 +98,7 @@ class ConcurrentMapTest {
     map.Insert(x, y);
     map.Insert(y, x);
     assert(make_pair(true, y) == map.Lookup(x));
+    std::cout << "\t" << __func__ << " passed" << std::endl;
   }
 
   void ManyOperationsTest() {
@@ -130,9 +131,13 @@ class ConcurrentMapTest {
     for (int i = 0; i < data_size; i++)
       map.Insert(i, i * 10);
 
+    for (int i = data_size; i < 2 * data_size; i++)
+      map.Insert(i, i * 10);
+
     for (int i = 0; i < data_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
     std::cout << "\t" << __func__ << " passed" << std::endl;
+    map.Clear();
   }
 
   void ResizeOverwriteTest() {
@@ -170,6 +175,7 @@ class ConcurrentMapTest {
         map.Insert(i, i * 10);
     };
 
+    auto time_start = std::chrono::high_resolution_clock::now();
     std::thread t1(writer, 0);
     std::thread t2(writer, chunk_size);
     std::thread t3(writer, 2 * chunk_size);
@@ -177,6 +183,8 @@ class ConcurrentMapTest {
     t1.join();
     t2.join();
     t3.join();
+    auto time_stop = std::chrono::high_resolution_clock::now();
+    auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(time_stop - time_start).count();
 
     for (int i = 0; i < 3 * chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
@@ -193,7 +201,7 @@ class ConcurrentMapTest {
     assert(chunk_size == (int)map.Size());
     for (int i = start_value; i < start_value + chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
-    std::cout << "\t" << __func__ << " passed" << std::endl;
+    std::cout << "\t" << __func__ << " passed. Microseconds elapsed: " << elapsed_us << std::endl;
   }
 
   void ParallelResizeTest() {
@@ -203,6 +211,7 @@ class ConcurrentMapTest {
       for (int i = start_value; i < start_value + chunk_size; i++)
         map.Insert(i, i * 10);
     };
+    auto time_start = std::chrono::high_resolution_clock::now();
     std::thread t1(writer, 0);
     std::thread t2(writer, chunk_size);
     std::thread t3(writer, 2 * chunk_size);
@@ -210,11 +219,13 @@ class ConcurrentMapTest {
     t1.join();
     t2.join();
     t3.join();
+    auto time_stop = std::chrono::high_resolution_clock::now();
+    auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(time_stop - time_start).count();
 
     for (int i = 0; i < 3 * chunk_size; i++)
       assert(make_pair(true, i * 10) == map.Lookup(i));
     assert(3 * chunk_size == (int)map.Size());
-    std::cout << "\t" << __func__ << " passed" << std::endl;
+    std::cout << "\t" << __func__ << " passed. Microseconds elapsed: " << elapsed_us << std::endl;
   }
 
   void ConcurrentWriteRemoveTest() {
@@ -286,6 +297,8 @@ class ConcurrentMapTest {
 
     std::vector<std::thread> threads;
 
+    auto time_start = std::chrono::high_resolution_clock::now();
+
     for (int i = 0; i < kHwThreads - 1; i++)
       threads.push_back(std::thread(writer, i * kDataSize / (kHwThreads - 1)));
 
@@ -300,6 +313,8 @@ class ConcurrentMapTest {
     }
 
     reader.join();
+    auto time_stop = std::chrono::high_resolution_clock::now();
+    auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_stop - time_start).count();
     std::cout << "\t\treader thread finished" << std::endl;
 
     consumer(true, true);
@@ -316,7 +331,7 @@ class ConcurrentMapTest {
 
     map.Clear();
     assert(0 == map.Size());
-    std::cout << "\t" << __func__ << " passed" << std::endl;
+    std::cout << "\t" << __func__ << " passed. Milliseconds elapsed: " << elapsed_ms << std::endl;
   }
 
 

@@ -14,6 +14,7 @@
 #endif
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
 #include "../src/bucket.h"
@@ -33,6 +34,7 @@ class LinkedListTest {
     LookupTest();
     RemoveTest();
     IteratorTest();
+    IteratorRvalueTest();
 
     std::cout << "Linked list tests passed." << std::endl;
   }
@@ -135,9 +137,33 @@ class LinkedListTest {
       list.Insert(x, x * 10);
 
     auto answer_iter = keys.rbegin();
-    for (auto iter = list.Begin(); iter != list.End(); ++iter, ++answer_iter)
+    for (auto iter = list.BeginSync(); iter != list.End(); ++iter, ++answer_iter)
       assert((*iter).first == *answer_iter && (*iter).second == *answer_iter * 10);
+
+    for (auto iter = list.BeginSync(); iter != list.End(); ++iter) {
+      (*iter).second = (*iter).first;
+    }
+
+    assert(make_pair(true, 1) == list.Lookup(1));
+    assert(make_pair(true, 3) == list.Lookup(3));
+    assert(make_pair(true, 20) == list.Lookup(20));
+
     std::cout << "\t" << __func__ << " passed" << std::endl;
+  }
+
+  void IteratorRvalueTest() {
+    Bucket<int, std::unique_ptr<int>> list;
+
+    list.Insert(1, std::make_unique<int>(1));
+    list.Insert(2, std::make_unique<int>(2));
+    auto iter = list.BeginSync();
+    assert(2 == *((*iter).second));
+
+    (*iter).second.reset(new int(22));
+    ++iter;
+    ++iter;
+    iter = list.BeginSync();
+    assert(22 == *((*iter).second));
   }
 };
 

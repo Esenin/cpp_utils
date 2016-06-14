@@ -9,6 +9,7 @@
 #include <utility> //pair
 
 #include "../src/bucket.h"
+#include "../src/helpers.h"
 
 namespace my_concurrency {
 
@@ -87,7 +88,7 @@ class ThreadsafeHashmap {
   std::function<uint32_t(KeyType)> hash_ = std::hash<KeyType>();
 
   State state_ = State::kNormal;
-  uint64_t max_elements_to_move_ = 1; ///< amount of element to move at one step of incremental resizing
+  uint64_t batch_elements_to_move_ = 1; ///< amount of element to move at one step of incremental resizing
   mutable std::shared_timed_mutex stateupdate_mutex_; ///< blocks only on changing state (Resizing begin/end)
 };
 
@@ -118,7 +119,7 @@ ThreadsafeHashmap<KeyType, ValueType> &ThreadsafeHashmap<KeyType, ValueType>::op
   secondary_size_ = rhs.secondary_size_.load(std::memory_order_acquire);
   hash_ = std::move(rhs.hash_);
   state_ = rhs.state_;
-  max_elements_to_move_ = rhs.max_elements_to_move_;
+  batch_elements_to_move_ = rhs.batch_elements_to_move_;
   stateupdate_mutex_ = std::move(rhs.stateupdate_mutex_);
   return *this;
 }
@@ -134,7 +135,7 @@ ThreadsafeHashmap<KeyType, ValueType> &ThreadsafeHashmap<KeyType, ValueType>::op
   secondary_size_ = rhs.secondary_size_.load(std::memory_order_acquire);
   hash_ = rhs.hash_;
   state_ = rhs.state_;
-  max_elements_to_move_ = rhs.max_elements_to_move_;
+  batch_elements_to_move_ = rhs.batch_elements_to_move_;
 
   for (uint64_t i = 0; i < rhs.num_buckets_primary_; i++) {
     primary_table_[i] = rhs.primary_table_[i];
@@ -207,7 +208,6 @@ std::pair<bool, ValueType> ThreadsafeHashmap<KeyType, ValueType>::Lookup(const K
   if (state_ == State::kResizing && !result.first) {
     result = secondary_table_[SecondaryIndex(key)].Lookup(key);
   }
-
   return result;
 }
 
@@ -257,7 +257,7 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingBegin() {
   num_buckets_secondary_ = static_cast<uint64_t> (num_buckets_primary_ * kIncreaseRate);
   secondary_table_.reset(new Bucket[num_buckets_secondary_]);
   secondary_size_ = 0;
-  max_elements_to_move_ = static_cast<uint64_t> (std::sqrt(num_buckets_primary_));
+  batch_elements_to_move_ = static_cast<uint64_t> (std::sqrt(num_buckets_primary_));
   state_ = State::kResizing;
 }
 
@@ -279,22 +279,24 @@ void ThreadsafeHashmap<KeyType, ValueType>::ResizingDone() {
 template <typename KeyType, typename ValueType>
 void ThreadsafeHashmap<KeyType, ValueType>::ContinuousMoving() {
   uint64_t counter = 0;
-  uint64_t bucket_id = 0;
-  while (counter < max_elements_to_move_ &&
-      primary_size_.load(std::memory_order_acquire) > 0 &&
-      bucket_id < num_buckets_primary_) {
-    auto &bucket = primary_table_[bucket_id];
+  thread_local static uint64_t bucket_id =
+      std::hash<std::thread::id>()(std::this_thread::get_id()) % num_buckets_primary_;
 
-    while (counter < max_elements_to_move_ && !bucket.Empty()) {
-      std::pair<KeyType, ValueType> temp;
-      if (kOperationFailed == bucket.PopFront(temp))
-        break;
-      if (secondary_table_[SecondaryIndex(temp.first)].Insert(std::move(temp)))
-        secondary_size_++;
-      primary_size_--;
-      counter++;
+  while (counter < batch_elements_to_move_ && primary_size_.load(std::memory_order_acquire) > 0) {
+    auto &bucket = primary_table_[bucket_id];
+    if (0 == bucket.Size()) {
+      bucket_id = (bucket_id + 1) % num_buckets_primary_;
+      continue;
     }
-    bucket_id++;
+
+    auto destination_router = [this](const KeyType &key) -> Bucket & {
+      return secondary_table_[SecondaryIndex(key)];
+    };
+    uint64_t num_migrated = bucket.MigrateTo(destination_router);
+    secondary_size_ += num_migrated;
+    counter += num_migrated;
+    bucket_id = (bucket_id + 1) % num_buckets_primary_;
+    primary_size_ -= num_migrated;
   }
 }
 
