@@ -1,0 +1,16 @@
+mysqladmin -u root -p create TODOLIST
+
+mysql> connect TODOLIST
+
+mysql> create table todo_tb(
+    -> id INT NOT NULL AUTO_INCREMENT,
+    -> title VARCHAR(200) NOT NULL,
+    -> description TEXT NOT NULL,
+    -> posted_date DATE,
+    -> done BOOL,
+    -> PRIMARY KEY (id)
+    -> );
+
+mysql> insert into todo_tb (title, description, posted_date, done)  VALUES ("first insert title", "first insert text", "2016-06-30", 0);
+mysql> insert into user (host, user, password, select_priv, insert_priv, update_priv) VALUES ('localhost', 'todo_client', PASSWORD('td_cli_pass7'), 'Y', 'Y', 'Y');
+
