@@ -13,8 +13,8 @@ void PrintUsage() {
   std::cout << "The program filters a given file removing the exactly matched word and then performs"
       << " case-insensitive sort\n"
       << "Usage:\n"
-      << "\t./remove_n_sort word in_file.txt [out_file.txt] [" << simple_cmd <<"]\n"
-      << "\t./remove_n_sort --help\n"
+      << "\t./filter_n_sort word in_file.txt [out_file.txt] [" << simple_cmd <<"]\n"
+      << "\t./filter_n_sort --help\n"
       << "\t\t" << simple_cmd << "\t:: use simple implementation (may be a little slower) (optional)\n"
       << "\t\t--help\t:: show this message\n\n"
       << "NOTES: the program is NOT oriented to process files with bigger size than available memory\n";

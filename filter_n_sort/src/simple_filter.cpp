@@ -11,7 +11,7 @@ SimpleFilter::SimpleFilter(const std::string &input_filename, const std::string 
 }
 
 bool SimpleFilter::HasNext() const {
-  return !input_.eof();
+  return input_.is_open() && !input_.eof();
 }
 
 std::string SimpleFilter::NextLine() {
