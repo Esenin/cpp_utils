@@ -27,6 +27,4 @@ target_link_libraries(unit_tests app_code)
 
 add_test(all_tests unit_tests)
 
-#add_subdirectory(src)
-#add_subdirectory(test)
 

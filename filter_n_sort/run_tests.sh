@@ -1,5 +1,3 @@
 #!/bin/bash
 
-./build.sh
-
-bin/unit_tests && ./functional_test.sh
+./build.sh && bin/unit_tests && ./functional_test.sh

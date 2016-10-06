@@ -18,7 +18,9 @@ class SimpleFilter : public FilterBase {
 
  private:
   std::ifstream input_;
-  std::regex pattern_;
+  std::regex pattern_begin_;
+  std::regex pattern_end_;
+  std::regex pattern_mid_;
 };
 
 }

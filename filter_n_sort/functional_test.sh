@@ -18,8 +18,10 @@ python input_data_generator.py $DATA_FILE $TEST_SIZE $TEST_WORD
 
 echo "Building relevant answer.."
 export LC_ALL=C # for correct sorting using gnu sort
-sed  "s/\<$TEST_WORD\>//g" $DATA_FILE  | sort --ignore-case --output=$ANSWER_FILE
-
+sed "s/\s\<$TEST_WORD\>\s/ /g" $DATA_FILE | \
+	sed "s/^\<$TEST_WORD\>\s//g" | \
+	sed "s/\s\<$TEST_WORD\>$//g" | \
+	sort --ignore-case --output=$ANSWER_FILE
 
 echo "Start testing.."
 APP_RESULT_FILE=$BUILD_DIR/output.txt
