@@ -8,9 +8,9 @@
 
 namespace app {
 
-class SimpleFilter : public FilterBase {
+class RegexFilter : public FilterBase {
  public:
-  SimpleFilter(const std::string &input_filename, const std::string &target_word);
+  RegexFilter(const std::string &input_filename, const std::string &target_word);
 
   bool HasNext() const override;
 

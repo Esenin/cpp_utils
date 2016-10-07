@@ -8,8 +8,8 @@ namespace app {
 class FilterBase {
  public:
   FilterBase(const std::string &input_filename, const std::string &target_word)
-      : in_file_(input_filename),
-        target_word_(target_word) {}
+      : in_filename_(input_filename),
+        kTargetWord(target_word) {}
 
   virtual ~FilterBase() {}
 
@@ -17,8 +17,8 @@ class FilterBase {
   virtual std::string NextLine() = 0;
 
  protected:
-  std::string in_file_;
-  std::string target_word_;
+  std::string in_filename_;
+  const std::string kTargetWord;
 
 };
 

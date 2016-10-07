@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "../src/simple_filter.h"
+#include "../src/regex_filter.h"
+#include "../src/raw_filter.h"
 
 using namespace app;
 namespace {
@@ -25,7 +26,7 @@ class FiltersTest : public ::testing::Test {
   }
 };
 
-typedef ::testing::Types<SimpleFilter> FiltersImpl;
+typedef ::testing::Types<RegexFilter, RawFilter> FiltersImpl;
 
 TYPED_TEST_CASE(FiltersTest, FiltersImpl);
 
@@ -34,8 +35,8 @@ TYPED_TEST_CASE(FiltersTest, FiltersImpl);
 
 
 TYPED_TEST(FiltersTest, HasNextHandlesNoSuchFile) {
-  TypeParam filter("no-such-file.txt", "word");
-  EXPECT_FALSE(filter.HasNext());
+  ASSERT_THROW(TypeParam filter("no-such-file.txt", "word"), std::runtime_error);
+//  EXPECT_FALSE(filter.HasNext());
 }
 
 TYPED_TEST(FiltersTest, HasNextHandlesOpen) {

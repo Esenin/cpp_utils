@@ -1,12 +1,12 @@
-#include <assert.h>
 #include <iostream>
 
 #include "application.h"
-#include "simple_filter.h"
+#include "raw_filter.h"
+#include "regex_filter.h"
 #include "simple_storage.h"
 
 namespace {
-const char *simple_cmd = "--simple";
+const char *simple_cmd = "--regex";
 }
 
 void PrintUsage() {
@@ -23,9 +23,10 @@ void PrintUsage() {
 
 app::Application ConfigureApp(const std::string &in_filename, const std::string &out_filename,
                               const std::string &filtered_word, bool simple_mode) {
-  assert(simple_mode); // TODO: turn on other impl
-  auto filter = app::UniqFilter(simple_mode? new app::SimpleFilter(in_filename, filtered_word) : nullptr);
-  auto storage = app::UniqStorage(simple_mode? new app::SimpleStorage(out_filename) : nullptr);
+  auto filter = simple_mode?
+                app::UniqFilter(new app::RegexFilter(in_filename, filtered_word)) :
+                app::UniqFilter(new app::RawFilter(in_filename, filtered_word));
+  auto storage = app::UniqStorage(new app::SimpleStorage(out_filename));
   return app::Application(std::move(filter), std::move(storage));
 }
 
