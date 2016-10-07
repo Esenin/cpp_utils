@@ -16,8 +16,8 @@ python input_data_generator.py $DATA_FILE $TEST_SIZE $TEST_WORD
 
 echo "Building relevant answer.."
 export LC_ALL=C # for correct sorting using gnu sort
-sed -e ':loop' -e "s/\s\<$TEST_WORD\>\s/ /g" -e 't loop' $DATA_FILE |  \
-	sed -e ':loop' -e "s/\s\<$TEST_WORD\>$//g" -e 't loop' |  \
+sed "s/\s\(\<$TEST_WORD\>\s\)*/ /g" $DATA_FILE |   \
+	sed "s/\s\<$TEST_WORD\>$//g" |  \
 	sed -r "s/^\<$TEST_WORD\>(\s|$)//g"  |  \
 	sort --ignore-case --output=$ANSWER_FILE
 
