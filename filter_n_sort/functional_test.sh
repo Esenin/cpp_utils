@@ -36,5 +36,6 @@ do
 	    echo "${red}TESTCASE $TEST_SIZE FAILED ${reset}"
 	    exit 1
 	fi
+	rm -f $APP_RESULT_FILE
 done
 echo "All tests passed ($(date))"

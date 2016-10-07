@@ -11,7 +11,8 @@ class FiltersTest : public ::testing::Test {
  public:
   const std::string fname_ = "temp.txt";
   std::vector<std::string> lines_ =
-      {"Line 1", "Line 2", "Test Line 3", "Line Test 4", "Line 5 Test", "Testfalse falseTest Testfalse Test falseTest"};
+      {"Line 1", "Line 2", "Test Line 3", "Line Test 4", "Line 5 Test", "Testfalse falseTest Testfalse Test falseTest",
+      "abc Test Test abc", "Test Test Test Test"};
 
   FiltersTest() {
     std::ofstream file(fname_);
@@ -106,5 +107,18 @@ TYPED_TEST(FiltersTest, NextLineSkipsFalsePositives) {
     EXPECT_EQ(filter.NextLine().find("Test"), std::string::npos);
 
   EXPECT_EQ(falsepostive_answer, filter.NextLine());
+}
+
+TYPED_TEST(FiltersTest, NextLineRepeatedPattern) {
+  TypeParam filter(this->fname_, "Test");
+  auto repeated_first = "abc abc";
+  auto repeated_second = "";
+
+  for (size_t i = 0; i < 5; i++)
+    EXPECT_EQ(filter.NextLine().find("Test"), std::string::npos);
+  filter.NextLine(); // skip false positive test
+
+  EXPECT_EQ(repeated_first, filter.NextLine());
+  EXPECT_EQ(repeated_second, filter.NextLine());
 }
 

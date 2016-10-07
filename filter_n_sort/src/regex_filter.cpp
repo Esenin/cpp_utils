@@ -7,11 +7,14 @@ RegexFilter::RegexFilter(const std::string &input_filename, const std::string &t
       input_(input_filename),
       pattern_begin_("^" + target_word + "([ ]|$)", std::regex_constants::optimize),
       pattern_end_("[ ]" + target_word + "$", std::regex_constants::optimize),
+      /*
+       * Middle regex replacement could perform a little faster if use manual program-loop instead of
+       *  regex (repeating)* mode
+       */
       pattern_mid_("[ ](" + target_word + "[ ])*", std::regex_constants::optimize) {
   if (!input_.is_open())
     throw std::runtime_error("Cannot open file");
 }
-
 
 bool RegexFilter::HasNext() const {
   return input_.is_open() && !input_.eof();

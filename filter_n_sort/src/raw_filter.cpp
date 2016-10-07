@@ -7,7 +7,7 @@ using namespace app;
 
 RawFilter::RawFilter(const std::string &input_filename, const std::string &target_word)
     : FilterBase(input_filename, target_word),
-    buffer_(kBufInitSize, '\0') {
+      buffer_(kBufInitSize, '\0') {
   in_file_ = fopen(input_filename.c_str(), "r");
   if (!in_file_)
     throw std::runtime_error("Cannot open file");
@@ -33,12 +33,12 @@ size_t RawFilter::FetchLineToBuffer() {
 }
 
 void RawFilter::SkipSpaces(size_t &pos, size_t len) const {
-  while(pos < len && isspace(buffer_[pos]))
+  while (pos < len && isspace(buffer_[pos]))
     ++pos;
 }
 
 void RawFilter::SkipTilSpace(size_t &pos, size_t len) const {
-  while(pos < len && !isspace(buffer_[pos]))
+  while (pos < len && !isspace(buffer_[pos]))
     ++pos;
 }
 
@@ -58,7 +58,7 @@ std::string RawFilter::NextLine() {
   }
 
   std::string result;
-  result.reserve(std::max((size_t) 0, buffer_used - skip_size + 1));
+  result.reserve(std::max((size_t)0, buffer_used - skip_size + 1));
   size_t cur_pos = 0;
   for (const auto &match_p : occurrences) {
     while (cur_pos < match_p.first) {
@@ -72,8 +72,7 @@ std::string RawFilter::NextLine() {
   return result;
 }
 
-
-void RawFilter::FindPatternOccurrences(std::vector<std::pair<size_t, size_t>> &occurrences, size_t buffer_used) const {
+void RawFilter::FindPatternOccurrences(std::vector<std::pair<size_t, size_t>> &occurrences, size_t buffer_size) const {
   const size_t kPatternSize = kTargetWord.size();
   size_t cur_pos = 0;
 
@@ -83,23 +82,23 @@ void RawFilter::FindPatternOccurrences(std::vector<std::pair<size_t, size_t>> &o
     if (buffer_[i] != kTargetWord[i]) {
       matched = false;
       cur_pos = i;
-      SkipTilSpace(cur_pos, buffer_used);
+      SkipTilSpace(cur_pos, buffer_size);
       break;
     }
-  if (matched && (buffer_used == kPatternSize || isspace(buffer_[kPatternSize]))) {
-    size_t size = kPatternSize + (buffer_used == kPatternSize? 0 : 1);
+  if (matched && (buffer_size == kPatternSize || isspace(buffer_[kPatternSize]))) {
+    size_t size = kPatternSize + (buffer_size == kPatternSize ? 0 : 1);
     occurrences.push_back(std::make_pair(0, size));
     cur_pos = kPatternSize;
   } else {
-    SkipTilSpace(cur_pos, buffer_used);
+    SkipTilSpace(cur_pos, buffer_size);
   }
 
-  while (cur_pos < buffer_used) {
-    SkipSpaces(cur_pos, buffer_used);
+  while (cur_pos < buffer_size) {
+    SkipSpaces(cur_pos, buffer_size);
 
     matched = true;
     for (size_t i = 0; i < kPatternSize; i++) {
-      if (cur_pos + i < buffer_used && buffer_[cur_pos + i] == kTargetWord[i]) {
+      if (cur_pos + i < buffer_size && buffer_[cur_pos + i] == kTargetWord[i]) {
         continue;
       } else {
         matched = false;
@@ -107,13 +106,13 @@ void RawFilter::FindPatternOccurrences(std::vector<std::pair<size_t, size_t>> &o
         break;
       }
     }
-    if (matched && (isspace(buffer_[cur_pos + kPatternSize]) || cur_pos + kPatternSize == buffer_used)) {
+    if (matched && (isspace(buffer_[cur_pos + kPatternSize]) || cur_pos + kPatternSize == buffer_size)) {
       size_t size = kPatternSize + 1; // for space
-      size_t start_pos = cur_pos + (cur_pos + kPatternSize == buffer_used? -1 : 0); // rm front space if end of line
+      size_t start_pos = cur_pos + (cur_pos + kPatternSize == buffer_size ? -1 : 0); // rm front space if end of line
       occurrences.push_back(std::make_pair(start_pos, size));
       cur_pos += kPatternSize;
     } else {
-      SkipTilSpace(cur_pos, buffer_used);
+      SkipTilSpace(cur_pos, buffer_size);
     }
   }
 }
